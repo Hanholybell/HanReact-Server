@@ -1,16 +1,11 @@
 const express = require('express');
-const http = require('http');
-const socketIo = require('socket.io');
-const cors = require('cors');
-
 const app = express();
-const server = http.createServer(app);
-const io = socketIo(server, {
-    cors: {
-        origin: 'http://localhost:3000', // 클라이언트의 주소와 포트를 명시
-        methods: ['GET', 'POST'],
-        credentials: true
-    }
+
+const http = require('http').createServer(app);
+const io = require('socket.io')(http, {
+  cors: { origin: "*" },
+  pingInterval: 25000,
+  pingTimeout: 60000
 });
 
 let userInfo = [];
@@ -94,5 +89,6 @@ io.on('connection', (socket) => {
   });
 });
 
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+http.listen(process.env.PORT || 5000, () => {
+  console.log("Server is running on port 5000");
+});
