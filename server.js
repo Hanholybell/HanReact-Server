@@ -1,94 +1,51 @@
+// server.js
 const express = require('express');
-const app = express();
+const http = require('http');
+const { Server } = require('socket.io');  // socket.io를 Server로 변경
+const cors = require('cors');
 
-const http = require('http').createServer(app);
-const io = require('socket.io')(http, {
-  cors: { origin: "*" },
-  pingInterval: 25000,
-  pingTimeout: 60000
+const app = express();
+app.use(cors());  // 모든 요청에 대해 CORS 허용
+
+const server = http.createServer(app);
+const io = new Server(server, {  // socket.io 서버 초기화
+  cors: {
+    origin: 'http://localhost:3000',  // 클라이언트가 실행 중인 도메인
+    methods: ['GET', 'POST'],  // 허용할 메서드
+    allowedHeaders: ['Content-Type'],  // 허용할 헤더
+    credentials: true  // 자격 증명 허용
+  }
 });
 
-let userInfo = [];
-let chatRooms = [
-  { roomName: "송탁쿤 정신차리자", createdBy: "a", users: [] },
-  { roomName: "🍟감튀를 사랑하는 자들🍟", createdBy: "a", users: [] },
-  { roomName: "Room3", createdBy: "a", users: [] }
-];
+let chatRooms = [];
 
 io.on('connection', (socket) => {
-  console.log('New client connected:', socket.id);
+  console.log('A user connected');
 
-  socket.on('login', (nickName) => {
-    const info = { nickName, id: socket.id };
-    userInfo.push(info);
-    io.emit('updateUserList', userInfo);
-    socket.emit('updateRoomList', chatRooms);  // 로그인 시 채팅방 목록을 전송
+  socket.on('joinRoom', ({ roomName }) => {
+    socket.join(roomName);
+    console.log(`${socket.id} joined room: ${roomName}`);
   });
 
-  socket.on('createRoom', ({ roomName, createdBy }) => {
-    const room = { roomName, createdBy , users: [] };
-    chatRooms.push(room);
-    io.emit('updateRoomList', chatRooms);
+  socket.on('leaveRoom', ({ roomName }) => {
+    socket.leave(roomName);
+    console.log(`${socket.id} left room: ${roomName}`);
   });
 
-  socket.on('deleteRoom', ({ roomName, requestedBy }) => {
-    const room = chatRooms.find(room => room.roomName === roomName);
-    if(room && room.createdBy === requestedBy) {
-      chatRooms = chatRooms.filter(room => room.roomName !== roomName);
-      io.to(roomName).emit('roomDeleted', {msg: "방이 삭제되었습니다."});
-      io.emit('updateRoomList', chatRooms);
-    } else {
-      socket.emit('deleteRoomFail', {msg: "방을 삭제할 권한이 없습니다."});
-    }
+  socket.on('message', ({ roomName, message, user }) => {
+    io.to(roomName).emit('message', { user, message });
   });
 
-  socket.on('joinRoom', ({ roomName, nickName }) => {
-    console.log(`Join room request: ${roomName} by ${nickName}`);  // 로그 추가
-    const room = chatRooms.find(room => room.roomName === roomName);
-    if (room) {
-      room.users.push({ id: socket.id, nickName });
-      socket.join(roomName);
-      console.log(`User ${nickName} joined room: ${roomName}`);  // 로그 추가
-      socket.emit('joinRoomSuccess', { roomName });
-      io.to(roomName).emit('msg', { level: "sys", msg: `${nickName} 님이 입장하였습니다.`, nickName: "" });
-    } else {
-      socket.emit('joinRoomFail', { msg: "Room not found." });
-    }
-  });
-
-  socket.on('leaveRoom', ({roomName, nickName}) => {
-    console.log(`Leave room request: ${roomName} by ${nickName}`);
-    const room = chatRooms.find(room => room.roomName === roomName);
-    if(room) {
-      room.users = room.users.filter(user => user.id !== socket.id);
-      socket.leave(roomName);
-      console.log(`User ${nickName} left room: ${roomName}`);
-      io.to(roomName).emit('msg', {level: "sys", msg: `${nickName} 님이 퇴장하였습니다.`});
-    }
-  });
-
-  socket.on('sendMessage', ({ roomName, nickName, msg }) => {
-    console.log(`Message from ${nickName} in room ${roomName}: ${msg}`);
-    io.to(roomName).emit('msg', { level: "other", msg, nickName });
-    socket.emit('msg', { level: "me", msg, nickName });
+  socket.on('createRoom', ({ roomName }) => {
+    chatRooms.push(roomName);
+    io.emit('updateRooms', chatRooms);
   });
 
   socket.on('disconnect', () => {
-    const user = userInfo.find(c => c.id == socket.id);
-    if (user) { 
-      userInfo = userInfo.filter(c => c.id !== socket.id);
-      chatRooms.forEach(room => {
-        const userIndex = room.users.findIndex(u => u.id === socket.id);
-        if (userIndex !== -1) {
-          room.users.splice(userIndex, 1);
-          io.to(room.roomName).emit('msg', { level: "sys", msg: `${user.nickName} 님이 퇴장하였습니다.`, nickName: "" });
-        }
-      });
-      io.emit('updateUserList', userInfo);
-    }
+    console.log('A user disconnected');
   });
 });
 
-http.listen(process.env.PORT || 5000, () => {
-  console.log("Server is running on port 5000");
+server.listen(3001, () => {
+  console.log('listening on *:3001');
 });
