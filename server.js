@@ -12,9 +12,7 @@ app.use(express.json());
 // PostgreSQL 연결 설정
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,  // Render에서 설정한 DATABASE_URL 환경 변수
-  ssl: {
-    rejectUnauthorized: false,  // SSL 설정
-  },
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,  // SSL 설정
 });
 
 const chatRooms = {};
