@@ -61,7 +61,7 @@ app.post('/login', async (req, res) => {
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: ['http://localhost:3000', 'https://yourdomain.com'],  // 허용된 도메인 설정
+    origin: ['http://localhost:3000', 'https://hanreact.onrender.com'],
     methods: ['GET', 'POST'],
     allowedHeaders: ['Content-Type'],
     credentials: true,
