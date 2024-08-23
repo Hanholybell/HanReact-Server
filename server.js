@@ -2,38 +2,38 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
-const bcrypt = require('bcryptjs');
+const bcrypt = require('bcrypt');
 const { Pool } = require('pg');
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-// PostgreSQL 연결 설정
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,  // Render에서 설정한 DATABASE_URL 환경 변수
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,  // SSL 설정
+  user: 'postgres',
+  host: 'localhost',
+  database: 'han',
+  password: 'postgres',
+  port: 5432,
 });
 
 const chatRooms = {};
 
-// 회원가입 엔드포인트
 app.post('/register', async (req, res) => {
   const { username, password, nickname } = req.body;
   try {
-    const hashedPassword = await bcrypt.hash(password, 10);  // 비밀번호 암호화
+    const hashedPassword = await bcrypt.hash(password, 10);
     const result = await pool.query(
       'INSERT INTO users (username, password, nickname) VALUES ($1, $2, $3) RETURNING *',
       [username, hashedPassword, nickname]
     );
-    res.status(201).json(result.rows[0]);  // 성공 시 새 사용자 정보 반환
+    res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: '회원가입 실패' });
   }
 });
 
-// 로그인 엔드포인트
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
   try {
@@ -42,7 +42,7 @@ app.post('/login', async (req, res) => {
       const user = result.rows[0];
       const match = await bcrypt.compare(password, user.password);
       if (match) {
-        res.status(200).json({ username: user.username, nickname: user.nickname });  // 성공 시 사용자 정보 반환
+        res.status(200).json({ username: user.username, nickname: user.nickname });
       } else {
         res.status(401).json({ error: '잘못된 비밀번호' });
       }
@@ -55,22 +55,21 @@ app.post('/login', async (req, res) => {
   }
 });
 
-// HTTP 서버 생성 및 WebSocket 서버 설정
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: ['http://localhost:3000', 'https://hanreact.onrender.com'],
+    origin: 'http://localhost:3000',
     methods: ['GET', 'POST'],
     allowedHeaders: ['Content-Type'],
     credentials: true,
   },
 });
 
-// WebSocket 연결 처리
 io.on('connection', (socket) => {
   console.log('A user connected');
   
-  socket.emit('initialRooms', Object.keys(chatRooms));  // 초기 방 목록 전송
+  // 클라이언트 연결 시 초기 방 목록 전송
+  socket.emit('initialRooms', Object.keys(chatRooms));
 
   socket.on('joinRoom', ({ roomName }) => {
     if (!chatRooms[roomName]) {
@@ -116,8 +115,6 @@ io.on('connection', (socket) => {
   });
 });
 
-// 포트 설정 및 서버 시작
-const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+server.listen(3001, () => {
+  console.log('Server is running on port 3001');
 });
